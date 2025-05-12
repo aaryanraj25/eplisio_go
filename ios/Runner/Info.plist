@@ -24,6 +24,8 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSLocationUsageDescription</key>
+	<string>This app requires location access to function correctly.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
     <string>This app needs access to location when open to track employee check-ins and outs.</string>
     <key>NSLocationAlwaysUsageDescription</key>

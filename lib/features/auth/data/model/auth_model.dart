@@ -1,7 +1,7 @@
 class SetPasswordModel {
   final String email;
   final String password;
-
+  
   SetPasswordModel({
     required this.email,
     required this.password,
@@ -34,7 +34,6 @@ class EmployeeModel {
     required this.adminId,
   });
 
-  // Empty constructor for initial state
   factory EmployeeModel.empty() {
     return EmployeeModel(
       employeeId: '',
@@ -71,10 +70,7 @@ class EmployeeModel {
     };
   }
 
-  // Check if employee data is empty
   bool get isEmpty => employeeId.isEmpty;
-
-  // Check if employee data is not empty
   bool get isNotEmpty => !isEmpty;
 
   @override

@@ -1,91 +1,96 @@
 enum OrderStatus {
   pending,
   completed,
-  prospective // instead of soft commitment
+  prospective,
+  rejected
 }
 
 class OrderModel {
   final String id;
-  final String orderNumber;
-  final String customerName;
-  final String customerPhone;
-  final double amount;
-  final DateTime orderDate;
-  final OrderStatus status;
-  final String? notes;
+  final String orderId;
+  final String clinicId; // Added clinic_id
   final List<OrderItemModel> items;
-  final DateTime? expectedDeliveryDate;
-  final double? probability; // For prospective orders
+  final double totalAmount;
+  final DateTime createdAt;
+  final OrderStatus status;
 
   OrderModel({
     required this.id,
-    required this.orderNumber,
-    required this.customerName,
-    required this.customerPhone,
-    required this.amount,
-    required this.orderDate,
-    required this.status,
-    this.notes,
+    required this.orderId,
+    required this.clinicId, // Added to constructor
     required this.items,
-    this.expectedDeliveryDate,
-    this.probability,
+    required this.totalAmount,
+    required this.createdAt,
+    required this.status,
   });
 
-  factory OrderModel.fromJson(Map<String, dynamic> json) => OrderModel(
-        id: json['_id'],
-        orderNumber: json['order_number'],
-        customerName: json['customer_name'],
-        customerPhone: json['customer_phone'],
-        amount: (json['amount'] ?? 0.0).toDouble(),
-        orderDate: DateTime.parse(json['order_date']),
-        status: OrderStatus.values.firstWhere(
-          (e) => e.toString().split('.').last == json['status'],
-          orElse: () => OrderStatus.pending,
-        ),
-        notes: json['notes'],
+  factory OrderModel.fromJson(Map<String, dynamic> json) {
+    try {
+      return OrderModel(
+        id: json['_id']?.toString() ?? '',
+        orderId: json['order_id']?.toString() ?? '',
+        clinicId: json['clinic_id']?.toString() ?? '', // Parse clinic_id from JSON
         items: (json['items'] as List?)
-                ?.map((item) => OrderItemModel.fromJson(item))
-                .toList() ??
-            [],
-        expectedDeliveryDate: json['expected_delivery_date'] != null
-            ? DateTime.parse(json['expected_delivery_date'])
-            : null,
-        probability: json['probability']?.toDouble(),
+            ?.map((item) => OrderItemModel.fromJson(item))
+            .toList() ?? [],
+        totalAmount: (json['total_amount'] ?? 0).toDouble(),
+        createdAt: DateTime.parse(json['created_at'] ?? DateTime.now().toIso8601String()),
+        status: _parseStatus(json['status']),
       );
+    } catch (e) {
+      print('Error parsing OrderModel: $e');
+      print('JSON data: $json');
+      rethrow;
+    }
+  }
+
+  static OrderStatus _parseStatus(dynamic status) {
+    if (status == null) return OrderStatus.pending;
+    
+    final statusStr = status.toString().toLowerCase();
+    switch (statusStr) {
+      case 'completed':
+        return OrderStatus.completed;
+      case 'pending':
+        return OrderStatus.pending;
+      case 'prospective':
+        return OrderStatus.prospective;
+      case 'rejected':
+        return OrderStatus.rejected;
+      default:
+        return OrderStatus.pending;
+    }
+  }
 }
 
 class OrderItemModel {
-  final String id;
+  final String productId;
   final String name;
   final int quantity;
   final double price;
-  final String? description;
+  final double totalAmount;
 
   OrderItemModel({
-    required this.id,
+    required this.productId,
     required this.name,
     required this.quantity,
     required this.price,
-    this.description,
+    required this.totalAmount,
   });
 
   factory OrderItemModel.fromJson(Map<String, dynamic> json) {
-    return OrderItemModel(
-      id: json['_id'],
-      name: json['name'],
-      quantity: json['quantity'],
-      price: (json['price'] ?? 0.0).toDouble(),
-      description: json['description'],
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      '_id': id,
-      'name': name,
-      'quantity': quantity,
-      'price': price,
-      'description': description,
-    };
+    try {
+      return OrderItemModel(
+        productId: json['product_id']?.toString() ?? '',
+        name: json['name']?.toString() ?? '',
+        quantity: int.tryParse(json['quantity'].toString()) ?? 0,
+        price: double.tryParse(json['price'].toString()) ?? 0.0,
+        totalAmount: double.tryParse(json['total'].toString()) ?? 0.0,
+      );
+    } catch (e) {
+      print('Error parsing OrderItemModel: $e');
+      print('JSON data: $json');
+      rethrow;
+    }
   }
 }

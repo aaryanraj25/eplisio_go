@@ -17,7 +17,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   final _confirmPasswordController = TextEditingController();
   final _isPasswordVisible = false.obs;
   final _isConfirmPasswordVisible = false.obs;
-
+  
   AuthController get controller => Get.find<AuthController>();
 
   @override

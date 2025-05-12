@@ -17,8 +17,6 @@ class _AuthScreenState extends State<AuthScreen>
   final _passwordController = TextEditingController();
   late TabController _tabController;
   final _isPasswordVisible = false.obs;
-
-  // Get the auth controller
   AuthController get controller => Get.find<AuthController>();
 
   @override
@@ -218,11 +216,10 @@ class _AuthScreenState extends State<AuthScreen>
       alignment: Alignment.centerRight,
       child: TextButton(
         onPressed: () {
-          // Navigate to forgot password screen
           Get.toNamed('/forgot-password');
         },
         child: Text(
-          'Forgot Password?',
+          'Forgot Password ?',
           style: TextStyle(
             color: Colors.grey[700],
             fontWeight: FontWeight.w500,

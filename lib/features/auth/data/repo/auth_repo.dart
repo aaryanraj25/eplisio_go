@@ -26,8 +26,6 @@ class AuthRepository {
       );
 
       final authResponse = EmployeeAuthResponse.fromJson(response.data);
-
-      // Store token and employee data
       await _storage.write('token', authResponse.token);
       print("1");
       await _storage.write('employee', authResponse.employee.toJson());
@@ -53,9 +51,7 @@ class AuthRepository {
           'password': password,
         },
       );
-
       final authResponse = EmployeeAuthResponse.fromJson(response.data);
-
       return authResponse;
     } catch (e) {
       throw Exception('Failed to set password: $e');
@@ -64,12 +60,8 @@ class AuthRepository {
 
   Future<void> logout() async {
     try {
-      // You might want to call a logout API endpoint here
-      // await _apiClient.post('/employee/logout');
     } catch (e) {
-      // Ignore logout API errors
     } finally {
-      // Clear local storage
       await _storage.erase();
     }
   }

@@ -1,31 +1,29 @@
+import 'package:intl/intl.dart';
+
 class StatisticsModel {
   final int totalSales;
   final int totalVisits;
   final PerformanceModel performance;
 
   StatisticsModel({
-    required this.totalSales,
-    required this.totalVisits,
+    this.totalSales = 0,
+    this.totalVisits = 0,
     required this.performance,
   });
 
   factory StatisticsModel.fromJson(Map<String, dynamic> json) {
     return StatisticsModel(
-      totalSales: _parseToInt(json['total_sales']),
-      totalVisits: _parseToInt(json['total_visits']),
-      performance: json['performance'] != null 
-          ? PerformanceModel.fromJson(json['performance']) 
-          : PerformanceModel(rank: 0, totalClients: 0),
+      totalSales: json['total_sales']?.toInt() ?? 0,
+      totalVisits: json['total_visits']?.toInt() ?? 0,
+      performance: PerformanceModel.fromJson(json['performance'] ?? {}),
     );
   }
-  
-  // Helper method to parse numeric values to int
-  static int _parseToInt(dynamic value) {
-    if (value == null) return 0;
-    if (value is int) return value;
-    if (value is double) return value.toInt();
-    if (value is String) return int.tryParse(value) ?? 0;
-    return 0;
+
+  // Add empty constructor for initial state
+  factory StatisticsModel.empty() {
+    return StatisticsModel(
+      performance: PerformanceModel.empty(),
+    );
   }
 }
 
@@ -34,21 +32,24 @@ class PerformanceModel {
   final int totalClients;
 
   PerformanceModel({
-    required this.rank,
-    required this.totalClients,
+    this.rank = 0,
+    this.totalClients = 0,
   });
 
   factory PerformanceModel.fromJson(Map<String, dynamic> json) {
     return PerformanceModel(
-      rank: StatisticsModel._parseToInt(json['rank']),
-      totalClients: StatisticsModel._parseToInt(json['total_clients']),
+      rank: json['rank']?.toInt() ?? 0,
+      totalClients: json['total_clients']?.toInt() ?? 0,
     );
   }
-}
 
+  factory PerformanceModel.empty() {
+    return PerformanceModel();
+  }
+}
 class ClockResponseModel {
-  final String clockInTime;
-  final String? clockOutTime;
+  final DateTime clockInTime;
+  final DateTime? clockOutTime;
   final String message;
   final bool workFromHome;
 
@@ -61,10 +62,27 @@ class ClockResponseModel {
 
   factory ClockResponseModel.fromJson(Map<String, dynamic> json) {
     return ClockResponseModel(
-      clockInTime: json['clock_in_time'] ?? '',
-      clockOutTime: json['clock_out_time'],
+      clockInTime: _parseDateTime(json['clock_in_time']),
+      clockOutTime: json['clock_out_time'] != null 
+          ? _parseDateTime(json['clock_out_time'])
+          : null,
       message: json['message'] ?? 'Success',
       workFromHome: json['work_from_home'] ?? false,
     );
   }
+
+  static DateTime _parseDateTime(String? dateStr) {
+    if (dateStr == null) return DateTime.now();
+    try {
+      return DateTime.parse(dateStr).toLocal(); // Convert to local time (IST)
+    } catch (e) {
+      return DateTime.now();
+    }
+  }
+
+  String get formattedClockInTime => 
+      DateFormat('HH:mm').format(clockInTime);
+  
+  String get formattedClockOutTime => 
+      clockOutTime != null ? DateFormat('HH:mm').format(clockOutTime!) : '--:--';
 }

@@ -1,4 +1,5 @@
 import 'package:eplisio_go/features/home/presentation/screen/home_screen.dart';
+import 'package:eplisio_go/features/meetings/presentation/screen/meeting_screen.dart';
 import 'package:eplisio_go/features/orders/presentation/screen/orders_screen.dart';
 import 'package:eplisio_go/features/profile/presentation/screen/profile_screen.dart';
 import 'package:flutter/material.dart';
@@ -14,10 +15,10 @@ class DashboardScreen extends GetView<DashboardController> {
       body: PageView(
         controller: controller.pageController,
         physics: const NeverScrollableScrollPhysics(),
-        children: const [
+        children: [
         HomeScreen(),
         OrdersScreen(),
-        Center(child: Text('Meetings')),
+        MeetingsScreen(),
         ProfileScreen()
       ],
       ),

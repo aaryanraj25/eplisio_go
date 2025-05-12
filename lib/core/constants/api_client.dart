@@ -1,11 +1,13 @@
 import 'package:dio/dio.dart';
+import 'package:get/get_core/src/get_main.dart';
+import 'package:get/get_navigation/get_navigation.dart';
 import 'package:get_storage/get_storage.dart';
 
 class ApiClient {
   late Dio _dio;
   final _storage = GetStorage();
   
-  static const String baseUrl = 'https://eplisio-backend-crm-production.up.railway.app';
+  static const String baseUrl = 'https://eplisio-backend-production.up.railway.app';
 
   ApiClient() {
     
@@ -33,7 +35,7 @@ class ApiClient {
             // Handle token expiration
             _storage.erase();
             // Navigate to login screen
-            // Get.offAllNamed('/login');
+            Get.offAllNamed('/login');
           }
           return handler.next(e);
         },

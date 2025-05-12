@@ -1,275 +1,287 @@
-import 'package:eplisio_go/core/utils/services.dart';
-import 'package:eplisio_go/features/home/data/repo/home_repo.dart';
+import 'dart:async';
+import 'package:eplisio_go/core/utils/location_services.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'dart:convert';
+import 'package:intl/intl.dart';
+import 'package:eplisio_go/core/utils/services.dart';
+import 'package:eplisio_go/features/home/data/model/home_model.dart';
+import 'package:eplisio_go/features/home/data/repo/home_repo.dart';
 
-class HomeController extends GetxController with WidgetsBindingObserver {
+class HomeController extends GetxController {
   final HomeRepository _repository;
 
-  // Reactive variables - minimal set
+  // Reactive variables
+  final _statistics = Rx<StatisticsModel>(StatisticsModel.empty());
   final _isLoading = false.obs;
   final _isClockedIn = false.obs;
-  final _clockInTime = RxString('--:--');
-  final _clockOutTime = RxString('--:--');
+  final _clockInTime = DateTime.now().obs;
+  final _clockOutTime = Rx<DateTime?>(null);
   final _formattedTimer = '00:00:00'.obs;
   final _isWfhMode = false.obs;
   final employeeName = ''.obs;
+  Timer? _timer;
 
-  // Statistics variables - loaded on demand
-  final _statsLoaded = false.obs;
-  final _totalSales = 0.obs;
-  final _totalVisits = 0.obs;
-  final _rank = 0.obs;
-  final _totalClients = 0.obs;
+  // Getters
+  StatisticsModel get statistics => _statistics.value;
+  bool get isLoading => _isLoading.value;
+  bool get isClockedIn => _isClockedIn.value;
+  String get formattedTimer => _formattedTimer.value;
+  bool get isWfhMode => _isWfhMode.value;
 
-  final _locationTrackingActive = false.obs;
-  bool get locationTrackingActive => _locationTrackingActive.value;
+  // Formatted time getters
+  String get formattedClockInTime {
+    try {
+      return DateFormat('HH:mm').format(_clockInTime.value);
+    } catch (e) {
+      return '--:--';
+    }
+  }
 
-  // Location variables
-  final _currentLatitude = RxDouble(0.0);
-  final _currentLongitude = RxDouble(0.0);
+  String get formattedClockOutTime {
+    try {
+      return _clockOutTime.value != null
+          ? DateFormat('HH:mm').format(_clockOutTime.value!)
+          : '--:--';
+    } catch (e) {
+      return '--:--';
+    }
+  }
 
   HomeController({required HomeRepository repository})
       : _repository = repository;
 
-  // Getters
-  bool get isLoading => _isLoading.value;
-  bool get isClockedIn => _isClockedIn.value;
-  String get clockInTime => _clockInTime.value;
-  String get clockOutTime => _clockOutTime.value;
-  String get formattedTimer => _formattedTimer.value;
-  bool get isWfhMode => _isWfhMode.value;
-  bool get statsLoaded => _statsLoaded.value;
-  int get totalSales => _totalSales.value;
-  int get totalVisits => _totalVisits.value;
-  int get rank => _rank.value;
-  int get totalClients => _totalClients.value;
-  double get currentLatitude => _currentLatitude.value;
-  double get currentLongitude => _currentLongitude.value;
-
   @override
   void onInit() {
     super.onInit();
-    // Register with WidgetsBinding to listen for app lifecycle events
-    WidgetsBinding.instance.addObserver(this);
-
-    Future.delayed(Duration(milliseconds: 300), () {
-      _initializeServices();
-    });
+    _initializeController();
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Handle app lifecycle changes
-    if (state == AppLifecycleState.resumed) {
-      // App is in the foreground
-      // Update location if the user is clocked in and app is brought to foreground
-      if (_isClockedIn.value && _locationTrackingActive.value) {
-        _updateCurrentLocation();
+  void onClose() {
+    _timer?.cancel();
+    LocationService.stopLocationUpdates();
+    super.onClose();
+  }
+
+  Future<void> _initializeController() async {
+    await _loadSavedState();
+    await Future.wait([
+      loadStatistics(),
+      _loadEmployeeData(),
+    ]);
+  }
+
+  Future<void> _loadSavedState() async {
+    try {
+      final storage = GetStorage();
+      final now = DateTime.now();
+
+      // Load clock state
+      _isClockedIn.value = storage.read('is_clocked_in') ?? false;
+
+      // Load clock times
+      final savedClockInTime = storage.read('clock_in_time');
+      final savedClockOutTime = storage.read('clock_out_time');
+
+      if (savedClockInTime != null) {
+        final clockInTime = DateTime.parse(savedClockInTime);
+        // Only load if it's from today
+        if (clockInTime.year == now.year &&
+            clockInTime.month == now.month &&
+            clockInTime.day == now.day) {
+          _clockInTime.value = clockInTime;
+
+          if (savedClockOutTime != null) {
+            _clockOutTime.value = DateTime.parse(savedClockOutTime);
+            // If clocked out, show timer until end of day
+            _startEndOfDayTimer(clockInTime);
+          } else if (_isClockedIn.value) {
+            // If still clocked in, start running timer
+            _startTimer();
+            LocationService.startLocationUpdates();
+          }
+        } else {
+          // Clear old data if not from today
+          await storage.remove('clock_in_time');
+          await storage.remove('clock_out_time');
+          await storage.write('is_clocked_in', false);
+          _resetTimerState();
+        }
+      }
+
+      // Load WFH mode
+      _isWfhMode.value = storage.read('is_wfh_mode') ?? false;
+    } catch (e) {
+      debugPrint('Error loading saved state: $e');
+      _resetTimerState();
+    }
+  }
+
+  void _resetTimerState() {
+    _isClockedIn.value = false;
+    _clockInTime.value = DateTime.now();
+    _clockOutTime.value = null;
+    _formattedTimer.value = '00:00:00';
+  }
+
+  Future<void> _loadEmployeeData() async {
+    try {
+      final storage = GetStorage();
+      final cachedData = storage.read('employee_data');
+
+      if (cachedData != null) {
+        employeeName.value = cachedData['name'] ?? '';
+      }
+
+      final employee = await _repository.getUserData();
+      employeeName.value = employee.name;
+
+      await storage.write('employee_data', employee.toJson());
+    } catch (e) {
+      debugPrint('Error loading employee data: $e');
+      if (employeeName.value.isEmpty) {
+        employeeName.value = 'User';
       }
     }
   }
 
-  Future<void> _updateCurrentLocation() async {
-    // Only update location if user is clocked in
-    if (!_isClockedIn.value) return;
-
-    try {
-      final location = await LocationService.getCurrentLocation();
-      _currentLatitude.value = location['latitude'] ?? 0.0;
-      _currentLongitude.value = location['longitude'] ?? 0.0;
-
-      // Only send to API if coordinates are valid
-      if (_currentLatitude.value != 0.0 && _currentLongitude.value != 0.0) {
-        await _repository.updateLocation(
-            _currentLatitude.value, _currentLongitude.value);
-        debugPrint(
-            'Location updated via API: ${_currentLatitude.value}, ${_currentLongitude.value}');
-      }
-    } catch (e) {
-      debugPrint('Error updating location: $e');
-    }
-  }
-
-  Future<void> _initializeServices() async {
-    // Initialize background services first
-    await BackgroundService.initialize();
-
-    // Set up callbacks to update UI when background service sends updates
-    BackgroundService.onTimerUpdate = (formattedTime) {
-      _formattedTimer.value = formattedTime;
-    };
-
-    BackgroundService.onLocationUpdate = (lat, lng) {
-      _currentLatitude.value = lat;
-      _currentLongitude.value = lng;
-    };
-
-    // Load essential data (minimal loading for fast UI rendering)
-    await _loadEssentialData();
-
-    // Check if user is clocked in and update location if needed
-    if (_isClockedIn.value) {
-      _locationTrackingActive.value = true;
-      _updateCurrentLocation();
-    }
-  }
-
-  Future<void> _loadEssentialData() async {
-    debugPrint('Loading essential data...');
-    try {
-      _isLoading.value = true;
-
-      // Load required minimum data in parallel
-      await Future.wait([
-        _loadUserProfile(),
-        _checkClockStatus(),
-        _loadInitialLocation(),
-      ]);
-    } catch (e) {
-      debugPrint('Error loading essential data: $e');
-    } finally {
-      _isLoading.value = false;
-    }
-  }
-
-  // Load user profile data (name, etc.)
-  Future<void> _loadUserProfile() async {
-    try {
-      final GetStorage storage = GetStorage();
-      final userData = storage.read('employee');
-
-      if (userData != null) {
-        final Map<String, dynamic> parsedData =
-            userData is String ? jsonDecode(userData) : userData;
-        employeeName.value = parsedData['name'] ?? '';
-      }
-    } catch (e) {
-      debugPrint('Error loading employee name: $e');
-    }
-  }
-
-  // Check if user is clocked in
-  Future<void> _checkClockStatus() async {
-    try {
-      // Get saved clock state
-      _isClockedIn.value = await BackgroundService.isTimerRunning();
-      _isWfhMode.value = await BackgroundService.isWfhMode();
-      _clockInTime.value = await BackgroundService.getClockInTime();
-      _clockOutTime.value = _isClockedIn.value ? '--:--' : _clockOutTime.value;
-
-      // Get current timer value
-      if (_isClockedIn.value) {
-        _formattedTimer.value = await BackgroundService.getFormattedTime();
-      }
-    } catch (e) {
-      debugPrint('Error checking clock status: $e');
-    }
-  }
-
-  // Load initial location
-  Future<void> _loadInitialLocation() async {
-    try {
-      final location = await BackgroundService.getLastLocation();
-      _currentLatitude.value = location['latitude'] ?? 0.0;
-      _currentLongitude.value = location['longitude'] ?? 0.0;
-
-      // If no valid location, try to get current
-      if (_currentLatitude.value == 0.0 && _currentLongitude.value == 0.0) {
-        final currentLocation = await LocationService.getCurrentLocation();
-        _currentLatitude.value = currentLocation['latitude'] ?? 0.0;
-        _currentLongitude.value = currentLocation['longitude'] ?? 0.0;
-      }
-    } catch (e) {
-      debugPrint('Error loading initial location: $e');
-    }
-  }
-
-  // Load statistics data (loaded on demand to optimize initial page load)
   Future<void> loadStatistics() async {
-    if (_statsLoaded.value) return;
-
     try {
-      _isLoading.value = true;
       final stats = await _repository.getStatistics();
-
-      _totalSales.value = stats.totalSales;
-      _totalVisits.value = stats.totalVisits;
-      _rank.value = stats.performance.rank;
-      _totalClients.value = stats.performance.totalClients;
-
-      _statsLoaded.value = true;
+      _statistics.value = stats;
     } catch (e) {
       debugPrint('Error loading statistics: $e');
-    } finally {
-      _isLoading.value = false;
+      _statistics.value = StatisticsModel.empty();
     }
   }
 
-  // Toggle WFH mode
   void toggleWfhMode() {
-    if (_isClockedIn.value) return; // Cannot change when clocked in
-    _isWfhMode.toggle();
+    if (!_isClockedIn.value) {
+      _isWfhMode.value = !_isWfhMode.value;
+      GetStorage().write('is_wfh_mode', _isWfhMode.value);
+    }
   }
 
-  // Handle clock in/out
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      final now = DateTime.now();
+      final difference = now.difference(_clockInTime.value);
+      _formattedTimer.value = _formatDuration(difference);
+    });
+  }
+
+  void _startEndOfDayTimer(DateTime clockInTime) {
+    final now = DateTime.now();
+
+    // Calculate elapsed time since clock in
+    if (_clockOutTime.value != null) {
+      final difference = _clockOutTime.value!.difference(clockInTime);
+      _formattedTimer.value = _formatDuration(difference);
+    }
+
+    // Set timer to clear at end of day
+    final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    final timeUntilEndOfDay = endOfDay.difference(now);
+
+    Future.delayed(timeUntilEndOfDay, () {
+      _resetTimerState();
+
+      // Clear saved state at end of day
+      final storage = GetStorage();
+      storage.remove('clock_in_time');
+      storage.remove('clock_out_time');
+      storage.write('is_clocked_in', false);
+    });
+  }
+
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    String hours = twoDigits(duration.inHours);
+    String minutes = twoDigits(duration.inMinutes.remainder(60));
+    String seconds = twoDigits(duration.inSeconds.remainder(60));
+    return '$hours:$minutes:$seconds';
+  }
+
   Future<void> toggleClockInOut() async {
     if (_isLoading.value) return;
 
     try {
       _isLoading.value = true;
 
-      // Get current location before clock action
-      final location = await LocationService.getCurrentLocation();
-      _currentLatitude.value = location['latitude'] ?? 0.0;
-      _currentLongitude.value = location['longitude'] ?? 0.0;
+      final storage = GetStorage();
+      final hasPermission = await LocationService.checkLocationPermission();
+      if (!hasPermission) {
+        throw Exception('Location permission not granted');
+      }
+      await LocationService.initialize();
+      Map<String, double> location;
+      int retryCount = 0;
+      do {
+        location = await LocationService.getCurrentLocation();
+        retryCount++;
+        if (location['latitude'] == 0.0 &&
+            location['longitude'] == 0.0 &&
+            retryCount < 3) {
+          await Future.delayed(const Duration(seconds: 2));
+        }
+      } while (location['latitude'] == 0.0 &&
+          location['longitude'] == 0.0 &&
+          retryCount < 3);
+
+      // Validate location
+      if (location['latitude'] == 0.0 && location['longitude'] == 0.0) {
+        throw Exception(
+            'Unable to get accurate location. Please check your GPS settings.');
+      }
 
       if (_isClockedIn.value) {
         // Clock Out
         final response = await _repository.clockOut(
-          latitude: _currentLatitude.value,
-          longitude: _currentLongitude.value,
+          latitude: location['latitude']!,
+          longitude: location['longitude']!,
         );
 
-        // Update clock times
-        _clockOutTime.value = response.clockOutTime ?? '--:--';
+        _clockOutTime.value = response.clockOutTime;
         _isClockedIn.value = false;
 
-        // Stop background timer
-        await BackgroundService.stopTimer();
-        _formattedTimer.value = '00:00:00';
+        // Save state
+        await storage.write('is_clocked_in', false);
+        await storage.write(
+            'clock_out_time', response.clockOutTime?.toIso8601String());
 
-        // Stop location tracking
-        LocationService.stopTracking();
-        _locationTrackingActive.value = false;
+        LocationService.stopLocationUpdates();
+
+        _timer?.cancel();
+        _startEndOfDayTimer(_clockInTime.value);
       } else {
         // Clock In
         final response = await _repository.clockIn(
           workFromHome: _isWfhMode.value,
-          latitude: _currentLatitude.value,
-          longitude: _currentLongitude.value,
+          latitude: location['latitude']!,
+          longitude: location['longitude']!,
         );
 
-        // Update clock time
-        _clockInTime.value = response.clockInTime ?? '--:--';
-        _clockOutTime.value = '--:--';
+        _clockInTime.value = response.clockInTime;
+        _clockOutTime.value = null;
         _isClockedIn.value = true;
 
-        // Start background timer
-        await BackgroundService.startTimer(isWfh: _isWfhMode.value);
+        // Save state
+        await storage.write('is_clocked_in', true);
+        await storage.write(
+            'clock_in_time', response.clockInTime.toIso8601String());
+        await storage.remove('clock_out_time');
 
-        // Start location tracking - only while clocked in
-        LocationService.startTracking(
-            highFrequency: true, updateInterval: const Duration(hours: 1));
-        _locationTrackingActive.value = true;
+        LocationService.startLocationUpdates();
+        _startTimer();
       }
+
+      await loadStatistics();
     } catch (e) {
-      debugPrint('Error toggling clock: $e');
       Get.snackbar(
         'Error',
-        'Failed to ${_isClockedIn.value ? 'clock out' : 'clock in'}',
+        'Failed to ${_isClockedIn.value ? 'clock out' : 'clock in'}: $e',
         snackPosition: SnackPosition.TOP,
         backgroundColor: Colors.red.withOpacity(0.1),
         colorText: Colors.red,
@@ -279,43 +291,11 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
   }
 
-  // Test location service for debugging
-  Future<void> testLocationService() async {
-    try {
-      _isLoading.value = true;
-      Get.snackbar(
-        'Location Test',
-        'Testing location service...',
-        duration: const Duration(seconds: 2),
-      );
-
-      final location = await LocationService.getCurrentLocation();
-      _currentLatitude.value = location['latitude'] ?? 0.0;
-      _currentLongitude.value = location['longitude'] ?? 0.0;
-
-      Get.snackbar(
-        'Location Test',
-        'Location: ${_currentLatitude.value}, ${_currentLongitude.value}',
-        backgroundColor: Colors.green.withOpacity(0.1),
-        colorText: Colors.green,
-      );
-    } catch (e) {
-      Get.snackbar(
-        'Location Test',
-        'Error: $e',
-        backgroundColor: Colors.red.withOpacity(0.1),
-        colorText: Colors.red,
-      );
-    } finally {
-      _isLoading.value = false;
-    }
-  }
-
-  @override
-  void onClose() {
-    // Remove the observer when controller is closed
-    WidgetsBinding.instance.removeObserver(this);
-    LocationService.stopTracking();
-    super.onClose();
+  // Helper method to check if a date is today
+  bool _isToday(DateTime date) {
+    final now = DateTime.now();
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
   }
 }

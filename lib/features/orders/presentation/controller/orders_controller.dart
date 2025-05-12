@@ -1,200 +1,133 @@
+import 'package:eplisio_go/core/constants/api_client.dart';
+import 'package:eplisio_go/features/clinic/data/model/clinic_model.dart';
 import 'package:eplisio_go/features/orders/data/model/orders_model.dart';
 import 'package:eplisio_go/features/orders/data/repo/orders_repo.dart';
+import 'package:eplisio_go/features/product/data/model/product_model.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-class OrdersController extends GetxController with GetTickerProviderStateMixin {
+class OrdersController extends GetxController {
   final OrdersRepository _repository;
-  late TabController tabController;
+  final orders = <OrderModel>[].obs;
+  final isLoading = false.obs;
+  final isActionLoading = false.obs; // New loading state for actions
+  final error = Rx<String?>(null);
+  final selectedStatus = Rx<OrderStatus?>(null);
 
-  final _isLoading = false.obs;
-  final _pendingOrders = <OrderModel>[].obs;
-  final _completedOrders = <OrderModel>[].obs;
-  final _prospectiveOrders = <OrderModel>[].obs;
-  final _currentTab = 0.obs;
+  // Cache for clinics and products
+  final clinics = <ClinicModel>[].obs;
+  final products = <ProductModel>[].obs;
+  final isClinicsLoading = false.obs;
+  final isProductsLoading = false.obs;
 
-  OrdersController({required OrdersRepository repository}) 
+  OrdersController({required OrdersRepository repository})
       : _repository = repository;
 
   @override
   void onInit() {
     super.onInit();
-    tabController = TabController(length: 3, vsync: this);
-    tabController.addListener(_onTabChanged);
-    loadAllOrders();
+    fetchOrders();
+    fetchClinicsAndProducts(); // Pre-fetch data
   }
 
-  @override
-  void onClose() {
-    tabController.dispose();
-    super.onClose();
-  }
-
-  void _onTabChanged() {
-    if (tabController.indexIsChanging) {
-      _currentTab.value = tabController.index;
-    }
-  }
-
-  // Getters
-  bool get isLoading => _isLoading.value;
-  List<OrderModel> get pendingOrders => _pendingOrders;
-  List<OrderModel> get completedOrders => _completedOrders;
-  List<OrderModel> get prospectiveOrders => _prospectiveOrders;
-  int get currentTab => _currentTab.value;
-
-  // Get orders by status
-  List<OrderModel> getOrdersByStatus(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.pending:
-        return _pendingOrders;
-      case OrderStatus.completed:
-        return _completedOrders;
-      case OrderStatus.prospective:
-        return _prospectiveOrders;
-      default:
-        return [];
-    }
-  }
-
-  // Load orders based on status
-  Future<void> loadAllOrders() async {
+  Future<void> fetchOrders() async {
     try {
-      _isLoading.value = true;
-      
-      // Load all types of orders simultaneously
-      final results = await Future.wait([
-        _repository.getPendingOrders(),
-        _repository.getCompletedOrders(),
-        _repository.getProspectiveOrders(),
-      ]);
+      isLoading.value = true;
+      error.value = null;
 
-      _pendingOrders.value = results[0];
-      _completedOrders.value = results[1];
-      _prospectiveOrders.value = results[2];
+      final fetchedOrders = await _repository.getOrders(
+        status: selectedStatus.value,
+      );
+      orders.value = fetchedOrders;
+    } catch (e) {
+      error.value = 'Failed to fetch orders: $e';
+      print('Error in fetchOrders: $e');
+    } finally {
+      isLoading.value = false;
+    }
+  }
 
+  void setStatus(OrderStatus? status) {
+    selectedStatus.value = status;
+    fetchOrders();
+  }
+
+  Future<void> fetchClinicsAndProducts() async {
+    try {
+      isClinicsLoading.value = true;
+      isProductsLoading.value = true;
+
+      // Fetch clinics
+      final clinicsResponse = await Get.find<ApiClient>().get(
+        '/orders/employee/employee/clinics',
+        queryParameters: {'limit': 100, 'skip': 0},
+      );
+      clinics.value = (clinicsResponse.data['clinics'] as List)
+          .map((clinic) => ClinicModel.fromJson(clinic))
+          .toList();
+
+      // Fetch products
+      final productsResponse = await Get.find<ApiClient>().get(
+        '/product/employee/list',
+        queryParameters: {'limit': 100, 'skip': 0},
+      );
+      products.value = (productsResponse.data['products'] as List)
+          .map((product) => ProductModel.fromJson(product))
+          .toList();
     } catch (e) {
       Get.snackbar(
         'Error',
-        'Failed to load orders',
-        snackPosition: SnackPosition.TOP,
+        'Failed to fetch data: $e',
         backgroundColor: Colors.red.withOpacity(0.1),
         colorText: Colors.red,
       );
     } finally {
-      _isLoading.value = false;
+      isClinicsLoading.value = false;
+      isProductsLoading.value = false;
     }
   }
 
-  // Refresh orders
-  Future<void> refreshOrders() async {
-    await loadAllOrders();
-  }
-
-  // Mark order as completed
-  Future<void> markAsCompleted(OrderModel order) async {
+  Future<void> createOrder(Map<String, dynamic> orderData) async {
     try {
-      await _repository.updateOrderStatus(order.id, OrderStatus.completed);
-      await refreshOrders();
-      
+      isActionLoading.value = true;
+      await _repository.createOrder(orderData);
+      await fetchOrders();
       Get.snackbar(
         'Success',
-        'Order marked as completed',
-        snackPosition: SnackPosition.TOP,
+        'Order created successfully',
+        backgroundColor: Colors.green.withOpacity(0.1),
+        colorText: Colors.green,
+        icon: const Icon(Icons.check_circle, color: Colors.green),
+      );
+    } catch (e) {
+      throw e;
+    } finally {
+      isActionLoading.value = false;
+    }
+  }
+
+  Future<void> convertToRegularOrder(
+      OrderModel order, double totalAmount) async {
+    try {
+      isActionLoading.value = true;
+      await _repository.convertToRegularOrder(order, totalAmount);
+      await fetchOrders();
+      Get.back(); // Close the dialog
+      Get.snackbar(
+        'Success',
+        'Order converted to pending successfully',
         backgroundColor: Colors.green.withOpacity(0.1),
         colorText: Colors.green,
       );
     } catch (e) {
       Get.snackbar(
         'Error',
-        'Failed to update order status',
-        snackPosition: SnackPosition.TOP,
+        'Failed to convert order: $e',
         backgroundColor: Colors.red.withOpacity(0.1),
         colorText: Colors.red,
       );
-    }
-  }
-
-  // Convert prospective to regular order
-  Future<void> convertToRegularOrder(OrderModel prospectiveOrder) async {
-    try {
-      await _repository.convertToRegularOrder(prospectiveOrder.id);
-      await refreshOrders();
-      
-      Get.snackbar(
-        'Success',
-        'Successfully converted to regular order',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: Colors.green.withOpacity(0.1),
-        colorText: Colors.green,
-      );
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to convert order',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: Colors.red.withOpacity(0.1),
-        colorText: Colors.red,
-      );
-    }
-  }
-
-  // Update probability of prospective order
-  Future<void> updateProbability(String orderId, double probability) async {
-    try {
-      await _repository.updateProbability(orderId, probability);
-      await refreshOrders();
-      
-      Get.snackbar(
-        'Success',
-        'Probability updated successfully',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: Colors.green.withOpacity(0.1),
-        colorText: Colors.green,
-      );
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to update probability',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: Colors.red.withOpacity(0.1),
-        colorText: Colors.red,
-      );
-    }
-  }
-
-  // Navigate to add new order
-  void addNewOrder() {
-    // Pass current tab index to determine which type of order to create
-    Get.toNamed('/orders/add', arguments: currentTab);
-  }
-
-  // Navigate to order details
-  void viewOrderDetails(OrderModel order) {
-    Get.toNamed('/orders/details', arguments: order);
-  }
-
-  // Delete order
-  Future<void> deleteOrder(OrderModel order) async {
-    try {
-      await _repository.deleteOrder(order.id);
-      await refreshOrders();
-      
-      Get.snackbar(
-        'Success',
-        'Order deleted successfully',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: Colors.green.withOpacity(0.1),
-        colorText: Colors.green,
-      );
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to delete order',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: Colors.red.withOpacity(0.1),
-        colorText: Colors.red,
-      );
+    } finally {
+      isActionLoading.value = false;
     }
   }
 }

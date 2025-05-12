@@ -3,4 +3,6 @@ abstract class Routes {
   static const DASHBOARD = '/dashboard';
   static const LOGIN = '/login';
   static const SETPASSWORD = '/set-passsword';
+  static const CLIENT = '/client';
+  static const CLINIC = '/clinic';
 }

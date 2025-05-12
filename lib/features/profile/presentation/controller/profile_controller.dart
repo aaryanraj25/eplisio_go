@@ -1,9 +1,14 @@
 import 'package:eplisio_go/features/profile/data/model/profile_model.dart';
+import 'package:eplisio_go/features/profile/data/repo/profile_repo.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 
 class ProfileController extends GetxController {
+  final ProfileRepository _repository;
+
+  ProfileController(this._repository);
+  
   final _profile = Rx<ProfileModel>(ProfileModel.empty());
   final _isLoading = false.obs;
   final GetStorage _storage = GetStorage();
@@ -20,10 +25,17 @@ class ProfileController extends GetxController {
   Future<void> loadProfile() async {
     try {
       _isLoading.value = true;
-      // Implement your API call here
-      // Example:
-      // final response = await _repository.getProfile();
-      // _profile.value = response;
+      final response = await _repository.getProfile();
+      
+      // Convert ProfileResponse to ProfileModel
+      _profile.value = ProfileModel(
+        id: response.employeeProfile.id,
+        name: response.employeeProfile.name,
+        email: response.employeeProfile.email,
+        organization: response.employeeProfile.organization,
+        role: response.employeeProfile.role,
+        // Add other fields as needed
+      );
     } catch (e) {
       Get.snackbar(
         'Error',
@@ -47,6 +59,14 @@ class ProfileController extends GetxController {
 
   void navigateToAttendance() {
     Get.toNamed('/attendance');
+  }
+
+  void navigateToClient() {
+    Get.toNamed('/client');
+  }
+
+  void navigateToHospital() {
+    Get.toNamed('/clinic');
   }
 
   Future<void> logout() async {

@@ -244,17 +244,18 @@ class ProfileScreen extends GetView<ProfileController> {
   Widget _buildOptionsSection() {
     return Column(
       children: [
+        const SizedBox(height: 16),
         _buildOptionTile(
-          icon: Icons.edit_outlined,
-          title: 'Edit Profile',
-          onTap: controller.navigateToEditProfile,
+          icon: Icons.people,
+          title: 'Contacts',
+          onTap: controller.navigateToClient,
           color: Colors.purple,
         ),
         const SizedBox(height: 16),
         _buildOptionTile(
-          icon: Icons.access_time,
-          title: 'Attendance',
-          onTap: controller.navigateToAttendance,
+          icon: Icons.local_hospital,
+          title: 'Hospitals',
+          onTap: controller.navigateToHospital,
           color: Colors.purple,
         ),
         const SizedBox(height: 16),

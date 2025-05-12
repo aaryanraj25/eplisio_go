@@ -2,6 +2,10 @@ import 'package:eplisio_go/core/routes/app_routes.dart';
 import 'package:eplisio_go/features/auth/presentation/binding/auth_binding.dart';
 import 'package:eplisio_go/features/auth/presentation/screen/auth_screen.dart';
 import 'package:eplisio_go/features/auth/presentation/widgets/set_password_screen.dart';
+import 'package:eplisio_go/features/client/presentation/binding/client_binding.dart';
+import 'package:eplisio_go/features/client/presentation/screen/client_screen.dart';
+import 'package:eplisio_go/features/clinic/presentation/binding/clinic_bindings.dart';
+import 'package:eplisio_go/features/clinic/presentation/screen/clinic_screen.dart';
 import 'package:eplisio_go/features/dashboard/presentation/binding/dashboard_binding.dart';
 import 'package:eplisio_go/features/dashboard/presentation/screen/dashboard_screen.dart';
 import 'package:eplisio_go/features/splash/presentation/binding/splash_binding.dart';
@@ -20,7 +24,7 @@ class AppPages {
 
     GetPage(
       name: Routes.DASHBOARD,
-      page: () => const DashboardScreen(),
+      page: () => DashboardScreen(),
       binding: DashboardBinding(),
     ),
 
@@ -34,6 +38,18 @@ class AppPages {
       name: Routes.SETPASSWORD,
       page: () => const SetPasswordScreen(),
       binding: AuthBinding(),
+    ),
+
+    GetPage(
+      name: Routes.CLIENT,
+      page: () => const ClientsScreen(),
+      binding: ClientsBinding(),
+    ),
+
+    GetPage(
+      name: Routes.CLINIC,
+      page: () => const HospitalsScreen(),
+      binding: HospitalsBinding(),
     ),
     
   ];
