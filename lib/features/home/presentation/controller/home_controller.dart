@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:eplisio_go/core/utils/location_services.dart';
+import 'package:eplisio_go/core/utils/time_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
@@ -19,8 +20,14 @@ class HomeController extends GetxController {
   final _clockOutTime = Rx<DateTime?>(null);
   final _formattedTimer = '00:00:00'.obs;
   final _isWfhMode = false.obs;
+  final _attendanceId = ''.obs;
+  final _totalHours = 0.0.obs;
   final employeeName = ''.obs;
+
+  // Timers
   Timer? _timer;
+  Timer? _autoClockOutTimer;
+  Timer? _endOfDayTimer;
 
   // Getters
   StatisticsModel get statistics => _statistics.value;
@@ -28,6 +35,7 @@ class HomeController extends GetxController {
   bool get isClockedIn => _isClockedIn.value;
   String get formattedTimer => _formattedTimer.value;
   bool get isWfhMode => _isWfhMode.value;
+  double get totalHours => _totalHours.value;
 
   // Formatted time getters
   String get formattedClockInTime {
@@ -55,21 +63,129 @@ class HomeController extends GetxController {
   void onInit() {
     super.onInit();
     _initializeController();
+    _updateCurrentLocation();
+  }
+
+  void _resetTimerState() {
+    _isClockedIn.value = false;
+    _clockInTime.value = TimeUtils.nowIST();
+    _clockOutTime.value = null;
+    _formattedTimer.value = '00:00:00';
+    _totalHours.value = 0.0;
+  }
+
+  Future<void> _updateCurrentLocation() async {
+    try {
+      final hasPermission = await LocationService.checkLocationPermission();
+      if (!hasPermission) {
+        debugPrint('Location permission not granted');
+        return;
+      }
+
+      await LocationService.initialize();
+      final location = await LocationService.getCurrentLocation();
+
+      if (location['latitude'] != 0.0 && location['longitude'] != 0.0) {
+        await _repository.updateLocation(
+          location['latitude']!,
+          location['longitude']!,
+        );
+      }
+    } catch (e) {
+      debugPrint('Error updating location: $e');
+    }
   }
 
   @override
   void onClose() {
     _timer?.cancel();
+    _autoClockOutTimer?.cancel();
+    _endOfDayTimer?.cancel();
     LocationService.stopLocationUpdates();
     super.onClose();
   }
 
   Future<void> _initializeController() async {
-    await _loadSavedState();
+    await _fetchTodayAttendance();
     await Future.wait([
       loadStatistics(),
       _loadEmployeeData(),
     ]);
+    _setupEndOfDayTimer();
+    _setupAutoClockOutTimer();
+  }
+
+  Future<void> _fetchTodayAttendance() async {
+    try {
+      final clockInfo = await _repository.getClockInTime();
+
+      _attendanceId.value = clockInfo.attendanceId;
+      _clockInTime.value = clockInfo.clockInTime;
+      _isWfhMode.value = clockInfo.workFromHome;
+
+      // Check if this is from a previous day and not clocked out
+      if (!_isToday(clockInfo.clockInTime) && clockInfo.clockOutTime == null) {
+        // Auto clock out at 9 PM of that day
+        final autoClockOutTime = DateTime(
+          clockInfo.clockInTime.year,
+          clockInfo.clockInTime.month,
+          clockInfo.clockInTime.day,
+          21, // 9 PM
+          0,
+          0,
+        );
+
+        try {
+          final response = await _repository.clockOut(
+            latitude: clockInfo.clockInLocation?['latitude'] ?? 0.0,
+            longitude: clockInfo.clockInLocation?['longitude'] ?? 0.0,
+          );
+
+          _clockOutTime.value = response.clockOutTime;
+          _isClockedIn.value = false;
+
+          // Calculate total hours
+          if (response.clockOutTime != null) {
+            final difference =
+                response.clockOutTime!.difference(clockInfo.clockInTime);
+            _totalHours.value = difference.inMinutes / 60;
+          }
+
+          debugPrint('Auto clocked out for previous day at 9 PM');
+        } catch (e) {
+          debugPrint('Error auto clocking out for previous day: $e');
+        }
+      } else {
+        // Normal flow for today
+        _isClockedIn.value = clockInfo.clockOutTime == null;
+        if (clockInfo.clockOutTime != null) {
+          _clockOutTime.value = clockInfo.clockOutTime;
+          _totalHours.value = clockInfo.totalHours ?? 0.0;
+          final difference =
+              clockInfo.clockOutTime!.difference(clockInfo.clockInTime);
+          _formattedTimer.value = _formatDuration(difference);
+        } else if (_isClockedIn.value) {
+          _startTimer();
+          LocationService.startLocationUpdates();
+          _setupAutoClockOutTimer();
+        }
+      }
+
+      // Save state
+      final storage = GetStorage();
+      await storage.write('is_clocked_in', _isClockedIn.value);
+      await storage.write(
+          'clock_in_time', _clockInTime.value.toIso8601String());
+      await storage.write('is_wfh_mode', _isWfhMode.value);
+
+      if (_clockOutTime.value != null) {
+        await storage.write(
+            'clock_out_time', _clockOutTime.value!.toIso8601String());
+      }
+    } catch (e) {
+      debugPrint('Error fetching attendance: $e');
+      await _loadSavedState();
+    }
   }
 
   Future<void> _loadSavedState() async {
@@ -87,9 +203,7 @@ class HomeController extends GetxController {
       if (savedClockInTime != null) {
         final clockInTime = DateTime.parse(savedClockInTime);
         // Only load if it's from today
-        if (clockInTime.year == now.year &&
-            clockInTime.month == now.month &&
-            clockInTime.day == now.day) {
+        if (_isToday(clockInTime)) {
           _clockInTime.value = clockInTime;
 
           if (savedClockOutTime != null) {
@@ -116,13 +230,6 @@ class HomeController extends GetxController {
       debugPrint('Error loading saved state: $e');
       _resetTimerState();
     }
-  }
-
-  void _resetTimerState() {
-    _isClockedIn.value = false;
-    _clockInTime.value = DateTime.now();
-    _clockOutTime.value = null;
-    _formattedTimer.value = '00:00:00';
   }
 
   Future<void> _loadEmployeeData() async {
@@ -182,18 +289,105 @@ class HomeController extends GetxController {
     }
 
     // Set timer to clear at end of day
-    final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    _setupEndOfDayTimer();
+  }
+
+  // Setup timer to reset data at end of day
+  void _setupEndOfDayTimer() {
+    _endOfDayTimer?.cancel();
+
+    final now = TimeUtils.nowIST();
+    final endOfDay = TimeUtils.getEndOfDay();
     final timeUntilEndOfDay = endOfDay.difference(now);
 
-    Future.delayed(timeUntilEndOfDay, () {
-      _resetTimerState();
+    if (timeUntilEndOfDay.inSeconds > 0) {
+      _endOfDayTimer = Timer(timeUntilEndOfDay, () {
+        _resetTimerState();
+        final storage = GetStorage();
+        storage.remove('clock_in_time');
+        storage.remove('clock_out_time');
+        storage.write('is_clocked_in', false);
+      });
+    }
+  }
 
-      // Clear saved state at end of day
+  // Setup auto clock-out timer if user is clocked in
+  void _setupAutoClockOutTimer() {
+    _autoClockOutTimer?.cancel();
+
+    if (_isClockedIn.value) {
+      final now = TimeUtils.nowIST();
+      final autoClockOutTime = TimeUtils.getNinepm();
+
+      // If it's past 9 PM IST, clock out immediately
+      if (now.isAfter(autoClockOutTime)) {
+        if (_isClockedIn.value) {
+          _autoClockOut();
+        }
+        return;
+      }
+
+      // Schedule auto clock out
+      final timeUntilAutoClockOut = autoClockOutTime.difference(now);
+      _autoClockOutTimer = Timer(timeUntilAutoClockOut, () async {
+        if (_isClockedIn.value) {
+          await _autoClockOut();
+        }
+      });
+
+      debugPrint(
+          'Auto clock-out scheduled for 9:00 PM IST (in ${timeUntilAutoClockOut.inHours} hours and ${timeUntilAutoClockOut.inMinutes % 60} minutes)');
+    }
+  }
+
+  // Automatically clock out the user
+  Future<void> _autoClockOut() async {
+    try {
+      debugPrint('Executing auto clock-out');
+
+      // Get last known location or use default
+      Map<String, double> location = {'latitude': 0.0, 'longitude': 0.0};
+
+      try {
+        location = await LocationService.getCurrentLocation();
+      } catch (e) {
+        debugPrint('Error getting location for auto clock-out: $e');
+      }
+
+      // Perform clock out operation
+      final response = await _repository.clockOut(
+        latitude: location['latitude']!,
+        longitude: location['longitude']!,
+      );
+
+      _clockOutTime.value = response.clockOutTime;
+      _isClockedIn.value = false;
+
+      // Save state
       final storage = GetStorage();
-      storage.remove('clock_in_time');
-      storage.remove('clock_out_time');
-      storage.write('is_clocked_in', false);
-    });
+      await storage.write('is_clocked_in', false);
+      await storage.write(
+          'clock_out_time', response.clockOutTime?.toIso8601String());
+
+      LocationService.stopLocationUpdates();
+
+      _timer?.cancel();
+
+      // Show notification
+      Get.snackbar(
+        'Auto Clock-Out',
+        'You have been automatically clocked out for the day.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.orange.withOpacity(0.1),
+        colorText: Colors.orange,
+        duration: const Duration(seconds: 5),
+      );
+
+      // Update statistics
+      await loadStatistics();
+    } catch (e) {
+      debugPrint('Auto clock-out failed: $e');
+    }
   }
 
   String _formatDuration(Duration duration) {
@@ -243,18 +437,25 @@ class HomeController extends GetxController {
           longitude: location['longitude']!,
         );
 
-        _clockOutTime.value = response.clockOutTime;
+        // Ensure clockOutTime is in IST
+        _clockOutTime.value = TimeUtils.toIST(response.clockOutTime!);
         _isClockedIn.value = false;
 
-        // Save state
+        // Save state in IST
         await storage.write('is_clocked_in', false);
         await storage.write(
-            'clock_out_time', response.clockOutTime?.toIso8601String());
+            'clock_out_time', _clockOutTime.value?.toIso8601String());
 
         LocationService.stopLocationUpdates();
-
         _timer?.cancel();
-        _startEndOfDayTimer(_clockInTime.value);
+        _autoClockOutTimer?.cancel();
+
+        // Update the timer display
+        if (_clockOutTime.value != null) {
+          final difference =
+              _clockOutTime.value!.difference(_clockInTime.value);
+          _formattedTimer.value = _formatDuration(difference);
+        }
       } else {
         // Clock In
         final response = await _repository.clockIn(
@@ -263,18 +464,20 @@ class HomeController extends GetxController {
           longitude: location['longitude']!,
         );
 
-        _clockInTime.value = response.clockInTime;
+        // Ensure clockInTime is in IST
+        _clockInTime.value = TimeUtils.toIST(response.clockInTime);
         _clockOutTime.value = null;
         _isClockedIn.value = true;
 
-        // Save state
+        // Save state in IST
         await storage.write('is_clocked_in', true);
         await storage.write(
-            'clock_in_time', response.clockInTime.toIso8601String());
+            'clock_in_time', _clockInTime.value.toIso8601String());
         await storage.remove('clock_out_time');
 
         LocationService.startLocationUpdates();
         _startTimer();
+        _setupAutoClockOutTimer();
       }
 
       await loadStatistics();
@@ -291,11 +494,7 @@ class HomeController extends GetxController {
     }
   }
 
-  // Helper method to check if a date is today
   bool _isToday(DateTime date) {
-    final now = DateTime.now();
-    return date.year == now.year &&
-        date.month == now.month &&
-        date.day == now.day;
+    return TimeUtils.isToday(date);
   }
 }

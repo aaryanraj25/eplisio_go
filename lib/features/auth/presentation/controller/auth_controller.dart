@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:eplisio_go/features/auth/data/model/auth_model.dart';
 import 'package:eplisio_go/features/auth/data/repo/auth_repo.dart';
 import 'package:flutter/material.dart';
@@ -11,9 +12,19 @@ class AuthController extends GetxController {
   final RxBool isLoading = false.obs;
   final RxBool isAuthenticated = false.obs;
   final RxString errorMessage = ''.obs;
+  final RxBool isOTPSent = false.obs;
+  final RxBool isResendingOTP = false.obs;
+  final RxInt resendTimer = 0.obs;
+  Timer? _resendTimer;
 
   AuthController({required AuthRepository repository})
       : _repository = repository;
+
+  @override
+  void onClose() {
+    _resendTimer?.cancel();
+    super.onClose();
+  }
 
   @override
   void onInit() {
@@ -56,11 +67,50 @@ class AuthController extends GetxController {
     }
   }
 
+  Future<void> requestOTP(String email) async {
+    if (isLoading.value || isResendingOTP.value) return;
+
+    try {
+      isResendingOTP.value = true;
+      errorMessage.value = '';
+
+      await _repository.requestPasswordResetOTP(email);
+
+      isOTPSent.value = true;
+      _startResendTimer();
+
+      Get.snackbar(
+        'Success',
+        'OTP has been sent to your email',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.green.withOpacity(0.1),
+        colorText: Colors.green,
+      );
+    } catch (e) {
+      _handleError('Failed to send OTP: ${e.toString()}');
+    } finally {
+      isResendingOTP.value = false;
+    }
+  }
+
+  void _startResendTimer() {
+    resendTimer.value = 120; // 2 minutes
+    _resendTimer?.cancel();
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (resendTimer.value > 0) {
+        resendTimer.value--;
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
   Future<void> setPassword({
     required String email,
     required String password,
+    required String otp,
   }) async {
-    if (isLoading.value) return; // Prevent multiple requests
+    if (isLoading.value) return;
 
     try {
       isLoading.value = true;
@@ -69,6 +119,7 @@ class AuthController extends GetxController {
       final response = await _repository.setPassword(
         email: email,
         password: password,
+        otp: otp,
       );
 
       currentEmployee.value = response.employee;

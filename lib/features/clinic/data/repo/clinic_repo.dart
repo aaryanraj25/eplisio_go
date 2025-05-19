@@ -66,4 +66,20 @@ class HospitalsRepository {
       throw 'Failed to add hospital: $e';
     }
   }
+
+  Future<void> addClinicManually(ClinicManualCreate clinic) async {
+    try {
+      final response = await apiClient.post(
+        '/hospital/employee/clinics/manual',
+        data: clinic.toJson(),
+        headers: _headers,
+      );
+
+      if (response.statusCode != 200) {
+        throw 'Failed to add clinic';
+      }
+    } catch (e) {
+      throw 'Failed to add clinic: $e';
+    }
+  }
 }

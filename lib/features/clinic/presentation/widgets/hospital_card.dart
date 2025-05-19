@@ -41,7 +41,7 @@ class HospitalCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (hospital.rating > 0)
+                if ((hospital.rating ?? 0) > 0) 
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -127,32 +127,6 @@ class HospitalCard extends StatelessWidget {
                 ],
               ),
             ],
-            if (hospital.specialties.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: hospital.specialties.map((specialty) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      specialty,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.blue,
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ],
             const SizedBox(height: 12),
             Row(
               children: [
@@ -195,7 +169,7 @@ class HospitalCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (hospital.withinRange) ...[
+                if (hospital.withinRange == true) ...[
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -216,7 +190,7 @@ class HospitalCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '${hospital.distance.toStringAsFixed(1)} km',
+                          '${hospital.distance != null ? hospital.distance!.toStringAsFixed(1) : " "} km',
                           style: const TextStyle(
                             fontSize: 12,
                             color: Colors.green,

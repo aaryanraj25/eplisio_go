@@ -86,3 +86,53 @@ class ClockResponseModel {
   String get formattedClockOutTime => 
       clockOutTime != null ? DateFormat('HH:mm').format(clockOutTime!) : '--:--';
 }
+
+
+class ClockInfoModel {
+  final String attendanceId;
+  final DateTime clockInTime;
+  final DateTime? clockOutTime;
+  final bool workFromHome;
+  final double? totalHours;
+  final Map<String, dynamic>? clockInLocation;
+  final Map<String, dynamic>? clockOutLocation;
+
+  ClockInfoModel({
+    required this.attendanceId,
+    required this.clockInTime,
+    this.clockOutTime,
+    this.workFromHome = false,
+    this.totalHours,
+    this.clockInLocation,
+    this.clockOutLocation,
+  });
+
+  factory ClockInfoModel.fromJson(Map<String, dynamic> json) {
+    return ClockInfoModel(
+      attendanceId: json['attendance_id'] ?? '',
+      clockInTime: _parseDateTime(json['clock_in_time']),
+      clockOutTime: json['clock_out_time'] != null 
+          ? _parseDateTime(json['clock_out_time']) 
+          : null,
+      workFromHome: json['work_from_home'] ?? false,
+      totalHours: json['total_hours']?.toDouble(),
+      clockInLocation: json['clock_in_location'],
+      clockOutLocation: json['clock_out_location'],
+    );
+  }
+
+  static DateTime _parseDateTime(String? dateStr) {
+    if (dateStr == null) return DateTime.now();
+    try {
+      return DateTime.parse(dateStr).toLocal(); // Convert to local time
+    } catch (e) {
+      return DateTime.now();
+    }
+  }
+
+  String get formattedClockInTime => 
+      DateFormat('HH:mm').format(clockInTime);
+  
+  String get formattedClockOutTime => 
+      clockOutTime != null ? DateFormat('HH:mm').format(clockOutTime!) : '--:--';
+}

@@ -25,6 +25,10 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+
+            <meta-data
+    android:name="com.google.android.gms.location.BACKGROUND_LOCATION_RATIONALE"
+    android:value="EplisioGo needs access to location in the background to verify your work location during your shift." />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>

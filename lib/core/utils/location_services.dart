@@ -53,9 +53,10 @@ class LocationService {
       }
 
       final locationData = await _location.getLocation().timeout(
-        const Duration(seconds: 10),
-        onTimeout: () => throw TimeoutException('Location request timed out'),
-      );
+            const Duration(seconds: 10),
+            onTimeout: () =>
+                throw TimeoutException('Location request timed out'),
+          );
 
       final latitude = locationData.latitude;
       final longitude = locationData.longitude;
@@ -79,7 +80,8 @@ class LocationService {
       const Duration(minutes: 15),
       (_) async {
         final location = await getCurrentLocation();
-        debugPrint('Periodic location update: ${location['latitude']}, ${location['longitude']}');
+        debugPrint(
+            'Periodic location update: ${location['latitude']}, ${location['longitude']}');
       },
     );
   }
@@ -91,19 +93,83 @@ class LocationService {
 
   static Future<bool> checkLocationPermission() async {
     try {
-      final status = await perm.Permission.location.status;
-      return status.isGranted;
+      // Show disclosure dialog first
+      final bool? showDisclosure = await Get.dialog<bool>(
+        AlertDialog(
+          title: const Text('Location Permission Required'),
+          content: const Text(
+            'EplisioGo needs access to location in the background to verify '
+            'your work location during your shift. This helps maintain accurate '
+            'attendance records.\n\n'
+            'Location tracking only occurs after you clock in and automatically '
+            'stops when you clock out or at 9 PM.\n\n'
+            'Your location is only shared with your organization during work hours.',
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Deny'),
+              onPressed: () => Get.back(result: false),
+            ),
+            TextButton(
+              child: const Text('Allow'),
+              onPressed: () => Get.back(result: true),
+            ),
+          ],
+        ),
+        barrierDismissible: false,
+      );
+
+      if (showDisclosure != true) {
+        return false;
+      }
+
+      // Check location permission status
+      var status = await perm.Permission.location.status;
+
+      // If permission is not granted, request it
+      if (!status.isGranted) {
+        status = await perm.Permission.location.request();
+        if (!status.isGranted) {
+          return false;
+        }
+      }
+
+      // After basic location permission, request background permission
+      var backgroundStatus = await perm.Permission.locationAlways.status;
+      if (!backgroundStatus.isGranted) {
+        backgroundStatus = await perm.Permission.locationAlways.request();
+      }
+
+      // Return true only if both permissions are granted
+      return status.isGranted && backgroundStatus.isGranted;
     } catch (e) {
       debugPrint('Error checking location permission: $e');
       return false;
     }
   }
 
+  // Add method to check if background location is enabled
+  static Future<bool> isBackgroundLocationEnabled() async {
+    try {
+      final status = await perm.Permission.locationAlways.status;
+      return status.isGranted;
+    } catch (e) {
+      debugPrint('Error checking background location permission: $e');
+      return false;
+    }
+  }
+
+  // Add method to open settings if permissions are permanently denied
+  static Future<void> openLocationSettings() async {
+    await perm.openAppSettings();
+  }
+
   static void _showErrorDialog(String error) {
     Get.dialog(
       AlertDialog(
         title: const Text('Location Error'),
-        content: Text('Unable to get location:\n$error\n\nPlease check your location settings and permissions.'),
+        content: Text(
+            'Unable to get location:\n$error\n\nPlease check your location settings and permissions.'),
         actions: [
           TextButton(
             onPressed: () => Get.back(),

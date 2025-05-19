@@ -6,7 +6,7 @@ import 'package:get/get_rx/src/rx_workers/utils/debouncer.dart';
 
 class HospitalsController extends GetxController {
   final HospitalsRepository _repository;
-  
+
   HospitalsController(this._repository);
 
   final RxList<ClinicModel> hospitals = <ClinicModel>[].obs;
@@ -38,7 +38,7 @@ class HospitalsController extends GetxController {
     try {
       isLoading.value = true;
       error.value = '';
-      
+
       final result = await _repository.getHospitals();
       hospitals.value = result.clinics;
       totalHospitals.value = result.total;
@@ -73,11 +73,27 @@ class HospitalsController extends GetxController {
     try {
       isAdding.value = true;
       await _repository.addHospitalFromGoogle(searchResult.placeId);
-      
+
       Get.back(); // Close search dialog
       await fetchHospitals(); // Refresh list
-      
+
       showSuccessSnackbar('Hospital added successfully');
+    } catch (e) {
+      showErrorSnackbar(e.toString());
+    } finally {
+      isAdding.value = false;
+    }
+  }
+
+  Future<void> addClinicManually(ClinicManualCreate clinic) async {
+    try {
+      isAdding.value = true;
+      await _repository.addClinicManually(clinic);
+
+      Get.back(); // Close dialog
+      await fetchHospitals(); // Refresh list
+
+      showSuccessSnackbar('Facility added successfully');
     } catch (e) {
       showErrorSnackbar(e.toString());
     } finally {
@@ -182,51 +198,46 @@ class HospitalsController extends GetxController {
 
   // Method to sort hospitals by rating
   void sortByRating({bool ascending = false}) {
-    hospitals.sort((a, b) => ascending 
-        ? a.rating.compareTo(b.rating)
-        : b.rating.compareTo(a.rating));
+    hospitals.sort((a, b) => ascending
+        ? a.rating!.compareTo(b.rating!)
+        : b.rating!.compareTo(a.rating!));
     hospitals.refresh();
   }
 
   // Method to sort hospitals by name
   void sortByName({bool ascending = true}) {
-    hospitals.sort((a, b) => ascending 
-        ? a.name.compareTo(b.name)
-        : b.name.compareTo(a.name));
+    hospitals.sort((a, b) =>
+        ascending ? a.name.compareTo(b.name) : b.name.compareTo(a.name));
     hospitals.refresh();
   }
 
   // Method to sort hospitals by distance
   void sortByDistance({bool ascending = true}) {
-    hospitals.sort((a, b) => ascending 
-        ? a.distance.compareTo(b.distance)
-        : b.distance.compareTo(a.distance));
+    hospitals.sort((a, b) => ascending
+        ? a.distance!.compareTo(b.distance!)
+        : b.distance!.compareTo(a.distance!));
     hospitals.refresh();
   }
 
   // Method to filter hospitals by rating threshold
   List<ClinicModel> getHospitalsByMinRating(double minRating) {
-    return hospitals.where((hospital) => hospital.rating >= minRating).toList();
+    return hospitals.where((hospital) => hospital.rating! >= minRating).toList();
   }
 
   // Method to get hospitals within distance
   List<ClinicModel> getHospitalsWithinDistance(double maxDistance) {
-    return hospitals.where((hospital) => 
-        hospital.distance <= maxDistance && hospital.withinRange).toList();
+    return hospitals
+        .where((hospital) =>
+            hospital.distance! <= maxDistance && hospital.withinRange!)
+        .toList();
   }
 
   // Method to get hospitals with specific specialties
   List<ClinicModel> getHospitalsBySpecialty(String specialty) {
-    return hospitals.where((hospital) => 
-        hospital.specialties.contains(specialty)).toList();
+    return hospitals
+        .where((hospital) => hospital.specialties!.contains(specialty))
+        .toList();
   }
 
   // Method to get all unique specialties
-  List<String> get allSpecialties {
-    Set<String> specialties = {};
-    for (var hospital in hospitals) {
-      specialties.addAll(hospital.specialties);
-    }
-    return specialties.toList();
-  }
 }

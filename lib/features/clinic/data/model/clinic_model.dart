@@ -91,7 +91,7 @@ class ClinicModel {
   final String? website;
   final double latitude;
   final double longitude;
-  final List<String> specialties;
+  final String? specialties; // Make nullable
   final String type;
   final String status;
   final String organizationId;
@@ -100,10 +100,10 @@ class ClinicModel {
   final DateTime createdAt;
   final DateTime? updatedAt;
   final String? googlePlaceId;
-  final double rating;
+  final double? rating; // Make nullable
   final int totalRatings;
-  final double distance;
-  final bool withinRange;
+  final double? distance; // Make nullable
+  final bool? withinRange; // Make nullable
   final String source;
 
   ClinicModel({
@@ -119,7 +119,7 @@ class ClinicModel {
     this.website,
     required this.latitude,
     required this.longitude,
-    required this.specialties,
+    this.specialties, // Make optional
     required this.type,
     required this.status,
     required this.organizationId,
@@ -128,10 +128,10 @@ class ClinicModel {
     required this.createdAt,
     this.updatedAt,
     this.googlePlaceId,
-    required this.rating,
+    this.rating, // Make optional
     required this.totalRatings,
-    required this.distance,
-    required this.withinRange,
+    this.distance, // Make optional
+    this.withinRange, // Make optional
     required this.source,
   });
 
@@ -149,22 +149,66 @@ class ClinicModel {
       website: json['website'],
       latitude: (json['latitude'] ?? 0.0).toDouble(),
       longitude: (json['longitude'] ?? 0.0).toDouble(),
-      specialties: List<String>.from(json['specialties'] ?? []),
+      specialties: json['specialties'],
       type: json['type'] ?? '',
       status: json['status'] ?? '',
       organizationId: json['organization_id'] ?? '',
       addedBy: json['added_by'] ?? '',
       addedByRole: json['added_by_role'] ?? '',
-      createdAt: DateTime.parse(json['created_at']),
+      createdAt: DateTime.parse(json['created_at'] ?? DateTime.now().toIso8601String()),
       updatedAt: json['updated_at'] != null 
           ? DateTime.parse(json['updated_at'])
           : null,
       googlePlaceId: json['google_place_id'],
-      rating: (json['rating'] ?? 0.0).toDouble(),
+      rating: json['rating']?.toDouble(),
       totalRatings: json['total_ratings'] ?? 0,
-      distance: (json['distance'] ?? 0.0).toDouble(),
-      withinRange: json['within_range'] ?? false,
+      distance: json['distance']?.toDouble(),
+      withinRange: json['within_range'],
       source: json['source'] ?? '',
     );
+  }
+}
+
+class ClinicManualCreate {
+  final String name;
+  final String type;
+  final String address;
+  final String city;
+  final String state;
+  final String country;
+  final String pincode;
+  final double latitude;
+  final double longitude;
+  final String phone;
+  final String website;
+
+  ClinicManualCreate({
+    required this.name,
+    required this.type,
+    required this.address,
+    required this.city,
+    required this.state,
+    required this.country,
+    required this.pincode,
+    required this.latitude,
+    required this.longitude,
+    required this.phone,
+    required this.website,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'type': type,
+      'address': address,
+      'city': city,
+      'state': state,
+      'country': country,
+      'pincode': pincode,
+      'latitude': latitude,
+      'longitude': longitude,
+      'phone': phone,
+      'website': website,
+    };
   }
 }

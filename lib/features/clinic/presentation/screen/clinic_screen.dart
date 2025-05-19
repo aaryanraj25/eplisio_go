@@ -1,5 +1,6 @@
 import 'package:eplisio_go/features/clinic/presentation/controller/clinic_controller.dart';
 import 'package:eplisio_go/features/clinic/presentation/widgets/hospital_card.dart';
+import 'package:eplisio_go/features/clinic/presentation/widgets/manual_clinic.dart';
 import 'package:eplisio_go/features/clinic/presentation/widgets/search_hospital_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -11,7 +12,9 @@ class HospitalsScreen extends GetView<HospitalsController> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Hospitals', style: TextStyle(color: Colors.purple, fontWeight: FontWeight.bold)),
+        title: const Text('Hospitals',
+            style:
+                TextStyle(color: Colors.purple, fontWeight: FontWeight.bold)),
         centerTitle: true,
         actions: [
           IconButton(
@@ -23,9 +26,51 @@ class HospitalsScreen extends GetView<HospitalsController> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.purple,
         onPressed: () {
-          Get.dialog(
-            const SearchHospitalDialog(),
-            barrierDismissible: false,
+          Get.bottomSheet(
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Add New Facility',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ListTile(
+                    leading: const Icon(Icons.add_location),
+                    title: const Text('Search Google Places'),
+                    subtitle: const Text('Add facility from Google Places'),
+                    onTap: () {
+                      Get.back();
+                      Get.dialog(
+                        const SearchHospitalDialog(),
+                        barrierDismissible: false,
+                      );
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.add_business),
+                    title: const Text('Add Manually'),
+                    subtitle: const Text('Create new facility manually'),
+                    onTap: () {
+                      Get.back();
+                      Get.dialog(
+                        const ManualClinicDialog(),
+                        barrierDismissible: false,
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
           );
         },
         child: const Icon(Icons.add),

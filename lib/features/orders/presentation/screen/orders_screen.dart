@@ -1,9 +1,7 @@
 import 'dart:math';
-import 'package:eplisio_go/core/constants/api_client.dart';
 import 'package:eplisio_go/core/utils/number_format.dart';
 import 'package:eplisio_go/features/clinic/data/model/clinic_model.dart';
 import 'package:eplisio_go/features/orders/data/model/orders_model.dart';
-import 'package:eplisio_go/features/orders/data/repo/orders_repo.dart';
 import 'package:eplisio_go/features/product/data/model/product_model.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -214,7 +212,7 @@ class OrdersScreen extends GetView<OrdersController> {
                 borderRadius: BorderRadius.circular(20),
               ),
             ),
-            icon: const Icon(Icons.add),
+            icon: const Icon(Icons.add, color: Colors.white,),
             label: Text(buttonText),
           ),
         ],

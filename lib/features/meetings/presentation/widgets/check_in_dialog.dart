@@ -210,10 +210,11 @@ class _CheckInDialogState extends State<CheckInDialog> {
                                     children: [
                                       ElevatedButton.icon(
                                         onPressed: _fetchNearbyClinics,
-                                        icon: const Icon(Icons.refresh),
+                                        icon: const Icon(Icons.refresh, color: Colors.white),
                                         label: const Text('Retry'),
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: Colors.purple,
+                                          foregroundColor: Colors.white,
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 16,
                                             vertical: 12,
@@ -223,10 +224,11 @@ class _CheckInDialogState extends State<CheckInDialog> {
                                       const SizedBox(width: 16),
                                       ElevatedButton.icon(
                                         onPressed: _navigateToAddHospital,
-                                        icon: const Icon(Icons.add),
+                                        icon: const Icon(Icons.add, color: Colors.white),
                                         label: const Text('Add Hospital'),
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: Colors.purple,
+                                          foregroundColor: Colors.white,
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 16,
                                             vertical: 12,
@@ -315,7 +317,7 @@ class _CheckInDialogState extends State<CheckInDialog> {
                                               .name,
                                         });
                                       },
-                                      icon: const Icon(Icons.add),
+                                      icon: const Icon(Icons.add, color: Colors.white),
                                       label: const Text('Add New Client'),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.purple,

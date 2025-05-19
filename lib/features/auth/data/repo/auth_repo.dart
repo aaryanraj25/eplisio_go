@@ -42,13 +42,15 @@ class AuthRepository {
   Future<EmployeeAuthResponse> setPassword({
     required String email,
     required String password,
+    required String otp, // Added OTP parameter
   }) async {
     try {
       final response = await _apiClient.post(
-        '/employee/Set-employee-password',
+        '/employee/set-employee-password',
         queryParameters: {
           'email': email,
           'password': password,
+          'otp': otp, // Include OTP in request
         },
       );
       final authResponse = EmployeeAuthResponse.fromJson(response.data);
@@ -59,8 +61,7 @@ class AuthRepository {
   }
 
   Future<void> logout() async {
-    try {
-    } catch (e) {
+    try {} catch (e) {
     } finally {
       await _storage.erase();
     }
@@ -78,5 +79,19 @@ class AuthRepository {
       return EmployeeModel.fromJson(employeeData);
     }
     return null;
+  }
+
+  Future<void> requestPasswordResetOTP(String email) async {
+    try {
+      final response = await _apiClient.post(
+        '/employee/request-password-reset-otp',
+        queryParameters: {
+          'email': email,
+        },
+      );
+      return response.data['message'];
+    } catch (e) {
+      throw Exception('Failed to send OTP: $e');
+    }
   }
 }

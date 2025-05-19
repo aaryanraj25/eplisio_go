@@ -17,7 +17,8 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   final _confirmPasswordController = TextEditingController();
   final _isPasswordVisible = false.obs;
   final _isConfirmPasswordVisible = false.obs;
-  
+  final _otpController = TextEditingController();
+
   AuthController get controller => Get.find<AuthController>();
 
   @override
@@ -25,6 +26,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _otpController.dispose();
     super.dispose();
   }
 
@@ -53,6 +55,8 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                   const SizedBox(height: 40),
                   _buildEmailField(),
                   const SizedBox(height: 24),
+                  _buildOTPSection(),
+                  const SizedBox(height: 24),
                   _buildPasswordField(),
                   const SizedBox(height: 24),
                   _buildConfirmPasswordField(),
@@ -66,6 +70,77 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildOTPSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'OTP',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[700],
+              ),
+            ),
+            Obx(() => TextButton(
+                  onPressed: controller.resendTimer.value == 0
+                      ? () =>
+                          controller.requestOTP(_emailController.text.trim())
+                      : null,
+                  child: Text(
+                    controller.resendTimer.value > 0
+                        ? 'Resend OTP in ${controller.resendTimer.value}s'
+                        : 'Send OTP',
+                    style: TextStyle(
+                      color: controller.resendTimer.value > 0
+                          ? Colors.grey
+                          : Colors.purple,
+                    ),
+                  ),
+                )),
+          ],
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _otpController,
+          keyboardType: TextInputType.number,
+          maxLength: 6,
+          decoration: InputDecoration(
+            hintText: 'Enter OTP',
+            prefixIcon: Icon(Icons.lock_clock, color: Colors.grey[600]),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.purple),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+            counterText: "",
+          ),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please enter OTP';
+            }
+            if (value.length != 6) {
+              return 'OTP must be 6 digits';
+            }
+            return null;
+          },
+        ),
+      ],
     );
   }
 
@@ -369,11 +444,10 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                 : const Text(
                     'Set Password',
                     style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                      color: Colors.white
-                    ),
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                        color: Colors.white),
                   ),
           ),
         ));
@@ -410,6 +484,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       controller.setPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
+        otp: _otpController.text.trim(),
       );
     }
   }

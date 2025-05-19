@@ -24,7 +24,6 @@ class MeetingsController extends GetxController {
   final filterClientId = Rxn<String>();
   final searchQuery = ''.obs;
   final RxList<ClinicModel> nearbyClinics = <ClinicModel>[].obs;
-  final LocationService _locationService = Get.find();
   final RxList<ClientModel> clients = <ClientModel>[].obs;
   final RxList<ProductModel> products = <ProductModel>[].obs;
   final isProductsLoading = false.obs;
