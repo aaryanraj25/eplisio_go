@@ -67,12 +67,15 @@ class LocationService {
 
       debugPrint('Location fetched - Lat: $latitude, Long: $longitude');
       return {'latitude': latitude, 'longitude': longitude};
+
     } catch (e) {
       debugPrint('Error getting location: $e');
       _showErrorDialog(e.toString());
       return {'latitude': 0.0, 'longitude': 0.0};
     }
   }
+
+  
 
   static void startLocationUpdates() {
     _locationUpdateTimer?.cancel();
@@ -93,75 +96,13 @@ class LocationService {
 
   static Future<bool> checkLocationPermission() async {
     try {
-      // Show disclosure dialog first
-      final bool? showDisclosure = await Get.dialog<bool>(
-        AlertDialog(
-          title: const Text('Location Permission Required'),
-          content: const Text(
-            'EplisioGo needs access to location in the background to verify '
-            'your work location during your shift. This helps maintain accurate '
-            'attendance records.\n\n'
-            'Location tracking only occurs after you clock in and automatically '
-            'stops when you clock out or at 9 PM.\n\n'
-            'Your location is only shared with your organization during work hours.',
-          ),
-          actions: [
-            TextButton(
-              child: const Text('Deny'),
-              onPressed: () => Get.back(result: false),
-            ),
-            TextButton(
-              child: const Text('Allow'),
-              onPressed: () => Get.back(result: true),
-            ),
-          ],
-        ),
-        barrierDismissible: false,
-      );
-
-      if (showDisclosure != true) {
-        return false;
-      }
-
-      // Check location permission status
-      var status = await perm.Permission.location.status;
-
-      // If permission is not granted, request it
-      if (!status.isGranted) {
-        status = await perm.Permission.location.request();
-        if (!status.isGranted) {
-          return false;
-        }
-      }
-
-      // After basic location permission, request background permission
-      var backgroundStatus = await perm.Permission.locationAlways.status;
-      if (!backgroundStatus.isGranted) {
-        backgroundStatus = await perm.Permission.locationAlways.request();
-      }
-
-      // Return true only if both permissions are granted
-      return status.isGranted && backgroundStatus.isGranted;
+      final status = await perm.Permission.location.status;
+      return status.isGranted;
+      
     } catch (e) {
       debugPrint('Error checking location permission: $e');
       return false;
     }
-  }
-
-  // Add method to check if background location is enabled
-  static Future<bool> isBackgroundLocationEnabled() async {
-    try {
-      final status = await perm.Permission.locationAlways.status;
-      return status.isGranted;
-    } catch (e) {
-      debugPrint('Error checking background location permission: $e');
-      return false;
-    }
-  }
-
-  // Add method to open settings if permissions are permanently denied
-  static Future<void> openLocationSettings() async {
-    await perm.openAppSettings();
   }
 
   static void _showErrorDialog(String error) {

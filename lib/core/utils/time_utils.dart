@@ -26,6 +26,7 @@ class TimeUtils {
     return DateTime(now.year, now.month, now.day, 23, 59, 59);
   }
   
+  
   static DateTime getNinepm() {
     final now = nowIST();
     return DateTime(now.year, now.month, now.day, 21, 0, 0);

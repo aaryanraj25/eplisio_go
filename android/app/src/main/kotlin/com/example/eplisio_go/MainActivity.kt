@@ -1,4 +1,4 @@
-package com.example.eplisio_go
+package com.eplisio.go
 
 import io.flutter.embedding.android.FlutterActivity
 

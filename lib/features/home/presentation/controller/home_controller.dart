@@ -63,7 +63,13 @@ class HomeController extends GetxController {
   void onInit() {
     super.onInit();
     _initializeController();
-    _updateCurrentLocation();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (Get.context != null) {
+        _updateCurrentLocation(Get.context!);
+      } else {
+        debugPrint('Context is null in onInit');
+      }
+    });
   }
 
   void _resetTimerState() {
@@ -74,25 +80,46 @@ class HomeController extends GetxController {
     _totalHours.value = 0.0;
   }
 
-  Future<void> _updateCurrentLocation() async {
+  void showLocationInfoDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text(
+          'Why We Need Your Location',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'EplisioGo requires background location access to verify your work '
+          'location during shifts. This ensures accurate attendance tracking.\n\n'
+          '🔹 Location is tracked **only after you clock in** and stops automatically '
+          'when you clock out or at 9 PM.\n\n'
+          '🔒 Your location data is shared **only with your organization** during work hours.',
+          style: TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            child: const Text('Got it'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _updateCurrentLocation(BuildContext context) async {
     try {
       final hasPermission = await LocationService.checkLocationPermission();
-      if (!hasPermission) {
+
+      if (hasPermission) {
+        // Show explanation dialog if permission is granted
+        showLocationInfoDialog(context);
+        return;
+      } else {
         debugPrint('Location permission not granted');
         return;
       }
-
-      await LocationService.initialize();
-      final location = await LocationService.getCurrentLocation();
-
-      if (location['latitude'] != 0.0 && location['longitude'] != 0.0) {
-        await _repository.updateLocation(
-          location['latitude']!,
-          location['longitude']!,
-        );
-      }
     } catch (e) {
-      debugPrint('Error updating location: $e');
+      debugPrint('Error checking location: $e');
     }
   }
 

@@ -100,9 +100,7 @@ class _AuthScreenState extends State<AuthScreen>
           _buildEmailField(),
           const SizedBox(height: 20),
           _buildPasswordField(),
-          const SizedBox(height: 16),
-          _buildForgotPassword(),
-          const SizedBox(height: 24),
+          const SizedBox(height: 30),
           _buildLoginButton(),
         ],
       ),
@@ -211,31 +209,11 @@ class _AuthScreenState extends State<AuthScreen>
     );
   }
 
-  Widget _buildForgotPassword() {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: TextButton(
-        onPressed: () {
-          Get.toNamed('/forgot-password');
-        },
-        child: Text(
-          'Forgot Password ?',
-          style: TextStyle(
-            color: Colors.grey[700],
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildLoginButton() {
     return Obx(() => SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: controller.isLoading.value 
-                ? null 
-                : _handleLogin,
+            onPressed: controller.isLoading.value ? null : _handleLogin,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.purple,
               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -332,7 +310,7 @@ class _AuthScreenState extends State<AuthScreen>
       ),
     );
   }
-  
+
   void _handleLogin() {
     if (_formKey.currentState!.validate()) {
       controller.login(
