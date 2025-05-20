@@ -122,8 +122,6 @@ class AuthController extends GetxController {
         otp: otp,
       );
 
-      currentEmployee.value = response.employee;
-
       // Show success dialog
       await Get.dialog(
         Dialog(
@@ -134,6 +132,7 @@ class AuthController extends GetxController {
             padding: const EdgeInsets.all(24.0),
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(
                   Icons.check_circle_outline,
@@ -143,6 +142,7 @@ class AuthController extends GetxController {
                 const SizedBox(height: 24),
                 const Text(
                   'Password Set Successfully',
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -177,6 +177,7 @@ class AuthController extends GetxController {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
+                        color: Colors.white
                       ),
                     ),
                   ),

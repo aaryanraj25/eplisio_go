@@ -100,7 +100,7 @@ class _AuthScreenState extends State<AuthScreen>
           _buildEmailField(),
           const SizedBox(height: 20),
           _buildPasswordField(),
-          const SizedBox(height: 30),
+          const SizedBox(height: 50),
           _buildLoginButton(),
         ],
       ),

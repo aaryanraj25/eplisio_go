@@ -39,22 +39,26 @@ class AuthRepository {
     }
   }
 
-  Future<EmployeeAuthResponse> setPassword({
+  Future<String> setPassword({
     required String email,
     required String password,
-    required String otp, // Added OTP parameter
+    required String otp,
   }) async {
     try {
       final response = await _apiClient.post(
         '/employee/set-employee-password',
-        queryParameters: {
+        data: {
           'email': email,
           'password': password,
-          'otp': otp, // Include OTP in request
+          'otp': otp,
         },
       );
-      final authResponse = EmployeeAuthResponse.fromJson(response.data);
-      return authResponse;
+
+      if (response.statusCode == 200) {
+        return response.data['message'];
+      } else {
+        throw Exception('Unexpected status code: ${response.statusCode}');
+      }
     } catch (e) {
       throw Exception('Failed to set password: $e');
     }
@@ -85,7 +89,7 @@ class AuthRepository {
     try {
       final response = await _apiClient.post(
         '/employee/request-password-reset-otp',
-        queryParameters: {
+        data: {
           'email': email,
         },
       );
