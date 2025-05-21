@@ -15,7 +15,7 @@ class HomeRepository {
         _storage = storage;
 
   // Get User Data
-  Future getUserData() async {
+  Future<EmployeeModel> getUserData() async {
     try {
       // First try to get from local storage
       final userData = _storage.read('user');
@@ -41,8 +41,7 @@ class HomeRepository {
     }
   }
 
-  Future<ClockResponseModel> clockOut(
-      {double? latitude, double? longitude}) async {
+  Future<ClockResponseModel> clockOut({double? latitude, double? longitude}) async {
     try {
       Map<String, dynamic> queryParams = {};
 
@@ -51,9 +50,10 @@ class HomeRepository {
         queryParams['longitude'] = longitude;
       }
 
-      final istTime = TimeUtils.nowIST();
-      final utcTime = TimeUtils.fromIST(istTime);
-      queryParams['clock_out_time'] = utcTime.toIso8601String();
+      // Always send UTC time to the backend
+      // First get current time in IST then convert to UTC for API
+      final now = DateTime.now();
+      queryParams['clock_out_time'] = now.toUtc().toIso8601String();
 
       final response = await _apiClient.post(
         '/employee/clock-out',
@@ -78,9 +78,9 @@ class HomeRepository {
         'longitude': longitude,
       };
 
-      final istTime = TimeUtils.nowIST();
-      final utcTime = TimeUtils.fromIST(istTime);
-      queryParams['clock_in_time'] = utcTime.toIso8601String();
+      // Always send UTC time to the backend
+      final now = DateTime.now();
+      queryParams['clock_in_time'] = now.toUtc().toIso8601String();
 
       final response = await _apiClient.post(
         '/employee/clock-in',
@@ -103,7 +103,7 @@ class HomeRepository {
   }
 
   // Update Employee Location
-  Future updateLocation(double latitude, double longitude) async {
+  Future<Map<String, dynamic>> updateLocation(double latitude, double longitude) async {
     try {
       final response = await _apiClient.post(
         '/employee/location',
@@ -119,7 +119,7 @@ class HomeRepository {
   }
 
   // Get Statistics
-  Future getStatistics() async {
+  Future<StatisticsModel> getStatistics() async {
     try {
       final response = await _apiClient.get('/employee/stats');
       return StatisticsModel.fromJson(response.data);

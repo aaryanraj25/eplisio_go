@@ -4,8 +4,6 @@ import 'package:eplisio_go/core/utils/time_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:intl/intl.dart';
-import 'package:eplisio_go/core/utils/services.dart';
 import 'package:eplisio_go/features/home/data/model/home_model.dart';
 import 'package:eplisio_go/features/home/data/repo/home_repo.dart';
 
@@ -37,10 +35,10 @@ class HomeController extends GetxController {
   bool get isWfhMode => _isWfhMode.value;
   double get totalHours => _totalHours.value;
 
-  // Formatted time getters
+  // Formatted time getters - Always return IST times for display
   String get formattedClockInTime {
     try {
-      return DateFormat('HH:mm').format(_clockInTime.value);
+      return TimeUtils.formatTimeHHMM(_clockInTime.value);
     } catch (e) {
       return '--:--';
     }
@@ -49,7 +47,7 @@ class HomeController extends GetxController {
   String get formattedClockOutTime {
     try {
       return _clockOutTime.value != null
-          ? DateFormat('HH:mm').format(_clockOutTime.value!)
+          ? TimeUtils.formatTimeHHMM(_clockOutTime.value!)
           : '--:--';
     } catch (e) {
       return '--:--';
@@ -147,16 +145,18 @@ class HomeController extends GetxController {
       final clockInfo = await _repository.getClockInTime();
 
       _attendanceId.value = clockInfo.attendanceId;
-      _clockInTime.value = clockInfo.clockInTime;
+      
+      // Convert clock times from UTC to IST for UI display
+      _clockInTime.value = TimeUtils.toIST(clockInfo.clockInTime);
       _isWfhMode.value = clockInfo.workFromHome;
 
       // Check if this is from a previous day and not clocked out
-      if (!_isToday(clockInfo.clockInTime) && clockInfo.clockOutTime == null) {
+      if (!TimeUtils.isToday(clockInfo.clockInTime) && clockInfo.clockOutTime == null) {
         // Auto clock out at 9 PM of that day
         final autoClockOutTime = DateTime(
-          clockInfo.clockInTime.year,
-          clockInfo.clockInTime.month,
-          clockInfo.clockInTime.day,
+          _clockInTime.value.year,
+          _clockInTime.value.month,
+          _clockInTime.value.day,
           21, // 9 PM
           0,
           0,
@@ -168,13 +168,14 @@ class HomeController extends GetxController {
             longitude: clockInfo.clockInLocation?['longitude'] ?? 0.0,
           );
 
-          _clockOutTime.value = response.clockOutTime;
+          // Convert clock-out time from UTC to IST for display
+          _clockOutTime.value = TimeUtils.toIST(response.clockOutTime!);
           _isClockedIn.value = false;
 
           // Calculate total hours
           if (response.clockOutTime != null) {
             final difference =
-                response.clockOutTime!.difference(clockInfo.clockInTime);
+                _clockOutTime.value!.difference(_clockInTime.value);
             _totalHours.value = difference.inMinutes / 60;
           }
 
@@ -186,11 +187,12 @@ class HomeController extends GetxController {
         // Normal flow for today
         _isClockedIn.value = clockInfo.clockOutTime == null;
         if (clockInfo.clockOutTime != null) {
-          _clockOutTime.value = clockInfo.clockOutTime;
+          // Convert clock-out time from UTC to IST for display
+          _clockOutTime.value = TimeUtils.toIST(clockInfo.clockOutTime!);
           _totalHours.value = clockInfo.totalHours ?? 0.0;
           final difference =
-              clockInfo.clockOutTime!.difference(clockInfo.clockInTime);
-          _formattedTimer.value = _formatDuration(difference);
+              _clockOutTime.value!.difference(_clockInTime.value);
+          _formattedTimer.value = TimeUtils.formatDuration(difference);
         } else if (_isClockedIn.value) {
           _startTimer();
           LocationService.startLocationUpdates();
@@ -218,7 +220,6 @@ class HomeController extends GetxController {
   Future<void> _loadSavedState() async {
     try {
       final storage = GetStorage();
-      final now = DateTime.now();
 
       // Load clock state
       _isClockedIn.value = storage.read('is_clocked_in') ?? false;
@@ -230,13 +231,14 @@ class HomeController extends GetxController {
       if (savedClockInTime != null) {
         final clockInTime = DateTime.parse(savedClockInTime);
         // Only load if it's from today
-        if (_isToday(clockInTime)) {
+        if (TimeUtils.isToday(clockInTime)) {
           _clockInTime.value = clockInTime;
 
           if (savedClockOutTime != null) {
             _clockOutTime.value = DateTime.parse(savedClockOutTime);
-            // If clocked out, show timer until end of day
-            _startEndOfDayTimer(clockInTime);
+            // Calculate and display total hours
+            final difference = _clockOutTime.value!.difference(_clockInTime.value);
+            _formattedTimer.value = TimeUtils.formatDuration(difference);
           } else if (_isClockedIn.value) {
             // If still clocked in, start running timer
             _startTimer();
@@ -300,30 +302,17 @@ class HomeController extends GetxController {
   void _startTimer() {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      final now = DateTime.now();
+      final now = DateTime.now(); // Local time
       final difference = now.difference(_clockInTime.value);
-      _formattedTimer.value = _formatDuration(difference);
+      _formattedTimer.value = TimeUtils.formatDuration(difference);
     });
-  }
-
-  void _startEndOfDayTimer(DateTime clockInTime) {
-    final now = DateTime.now();
-
-    // Calculate elapsed time since clock in
-    if (_clockOutTime.value != null) {
-      final difference = _clockOutTime.value!.difference(clockInTime);
-      _formattedTimer.value = _formatDuration(difference);
-    }
-
-    // Set timer to clear at end of day
-    _setupEndOfDayTimer();
   }
 
   // Setup timer to reset data at end of day
   void _setupEndOfDayTimer() {
     _endOfDayTimer?.cancel();
 
-    final now = TimeUtils.nowIST();
+    final now = DateTime.now(); // Local time
     final endOfDay = TimeUtils.getEndOfDay();
     final timeUntilEndOfDay = endOfDay.difference(now);
 
@@ -343,7 +332,7 @@ class HomeController extends GetxController {
     _autoClockOutTimer?.cancel();
 
     if (_isClockedIn.value) {
-      final now = TimeUtils.nowIST();
+      final now = DateTime.now(); // Local time
       final autoClockOutTime = TimeUtils.getNinepm();
 
       // If it's past 9 PM IST, clock out immediately
@@ -387,18 +376,25 @@ class HomeController extends GetxController {
         longitude: location['longitude']!,
       );
 
-      _clockOutTime.value = response.clockOutTime;
+      // Convert clock-out time from UTC to IST for display
+      _clockOutTime.value = TimeUtils.toIST(response.clockOutTime!);
       _isClockedIn.value = false;
 
       // Save state
       final storage = GetStorage();
       await storage.write('is_clocked_in', false);
       await storage.write(
-          'clock_out_time', response.clockOutTime?.toIso8601String());
+          'clock_out_time', _clockOutTime.value?.toIso8601String());
 
       LocationService.stopLocationUpdates();
-
       _timer?.cancel();
+
+      // Calculate total hours
+      if (_clockOutTime.value != null) {
+        final difference = _clockOutTime.value!.difference(_clockInTime.value);
+        _totalHours.value = difference.inMinutes / 60;
+        _formattedTimer.value = TimeUtils.formatDuration(difference);
+      }
 
       // Show notification
       Get.snackbar(
@@ -415,14 +411,6 @@ class HomeController extends GetxController {
     } catch (e) {
       debugPrint('Auto clock-out failed: $e');
     }
-  }
-
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    String hours = twoDigits(duration.inHours);
-    String minutes = twoDigits(duration.inMinutes.remainder(60));
-    String seconds = twoDigits(duration.inSeconds.remainder(60));
-    return '$hours:$minutes:$seconds';
   }
 
   Future<void> toggleClockInOut() async {
@@ -464,11 +452,11 @@ class HomeController extends GetxController {
           longitude: location['longitude']!,
         );
 
-        // Ensure clockOutTime is in IST
+        // Convert clock-out time from UTC to IST for display
         _clockOutTime.value = TimeUtils.toIST(response.clockOutTime!);
         _isClockedIn.value = false;
 
-        // Save state in IST
+        // Save state
         await storage.write('is_clocked_in', false);
         await storage.write(
             'clock_out_time', _clockOutTime.value?.toIso8601String());
@@ -481,7 +469,8 @@ class HomeController extends GetxController {
         if (_clockOutTime.value != null) {
           final difference =
               _clockOutTime.value!.difference(_clockInTime.value);
-          _formattedTimer.value = _formatDuration(difference);
+          _formattedTimer.value = TimeUtils.formatDuration(difference);
+          _totalHours.value = difference.inMinutes / 60;
         }
       } else {
         // Clock In
@@ -491,12 +480,12 @@ class HomeController extends GetxController {
           longitude: location['longitude']!,
         );
 
-        // Ensure clockInTime is in IST
+        // Convert clock-in time from UTC to IST for display
         _clockInTime.value = TimeUtils.toIST(response.clockInTime);
         _clockOutTime.value = null;
         _isClockedIn.value = true;
 
-        // Save state in IST
+        // Save state
         await storage.write('is_clocked_in', true);
         await storage.write(
             'clock_in_time', _clockInTime.value.toIso8601String());
@@ -519,9 +508,5 @@ class HomeController extends GetxController {
     } finally {
       _isLoading.value = false;
     }
-  }
-
-  bool _isToday(DateTime date) {
-    return TimeUtils.isToday(date);
   }
 }

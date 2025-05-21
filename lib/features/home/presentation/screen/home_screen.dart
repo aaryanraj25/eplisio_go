@@ -7,26 +7,6 @@ import '../controller/home_controller.dart';
 class HomeScreen extends GetView<HomeController> {
   const HomeScreen({Key? key}) : super(key: key);
 
-  String convertUtcHourMinToIst(String utcTimeStr) {
-    // Split input "HH:mm"
-    final parts = utcTimeStr.split(':');
-    if (parts.length != 2) return utcTimeStr; // fallback
-
-    final hour = int.tryParse(parts[0]) ?? 0;
-    final minute = int.tryParse(parts[1]) ?? 0;
-
-    // Create a DateTime in UTC with today's date
-    final now = DateTime.now().toUtc();
-    final utcDateTime =
-        DateTime.utc(now.year, now.month, now.day, hour, minute);
-
-    // Add IST offset
-    final istDateTime = utcDateTime.add(const Duration(hours: 5, minutes: 30));
-
-    // Format back to HH:mm (you can customize)
-    return '${istDateTime.hour.toString().padLeft(2, '0')}:${istDateTime.minute.toString().padLeft(2, '0')}';
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -56,9 +36,6 @@ class HomeScreen extends GetView<HomeController> {
   }
 
   Widget _buildHeader() {
-    // Don't forget to import this package
-    // import 'package:flutter/services.dart';
-
     // Set status bar icons to dark mode (black) to be visible against light backgrounds
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
       statusBarBrightness:
@@ -209,7 +186,7 @@ class HomeScreen extends GetView<HomeController> {
                         const Icon(Icons.schedule, color: Colors.purple),
                         const SizedBox(width: 10),
                         Text(
-                          '${convertUtcHourMinToIst(controller.formattedClockInTime)} - ${convertUtcHourMinToIst(controller.formattedClockOutTime)}',
+                          '${controller.formattedClockInTime} - ${controller.formattedClockOutTime}',
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
